@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Игра: Угадай число 🎯</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex items-center justify-center p-4">
+
+  <div class="bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-800 space-y-6 relative overflow-hidden">
+    
+    <!-- Шапка игры -->
+    <div class="text-center space-y-2">
+      <div class="w-16 h-16 bg-gradient-to-tr from-indigo-600 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto text-3xl text-white shadow-lg shadow-indigo-500/20">
+        <i class="fa-solid fa-bullseye"></i>
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-white">Угадай число</h1>
+      <p id="rangeSubtitle" class="text-slate-400 text-xs sm:text-sm">Я загадал число от <span class="text-emerald-400 font-bold">1</span> до <span id="maxRangeLabel" class="text-emerald-400 font-bold">100</span></p>
+    </div>
+
+    <!-- Выбор сложности -->
+    <div class="grid grid-cols-3 gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 text-xs font-bold">
+      <button onclick="setDifficulty(50)" id="diff50" class="py-2 rounded-xl transition text-slate-400 hover:text-white">1–50</button>
+      <button onclick="setDifficulty(100)" id="diff100" class="py-2 rounded-xl bg-indigo-600 text-white shadow transition">1–100</button>
+      <button onclick="setDifficulty(500)" id="diff500" class="py-2 rounded-xl transition text-slate-400 hover:text-white">1–500</button>
+    </div>
+
+    <!-- Интерактивное поле ввода -->
+    <div class="space-y-3">
+      <form onsubmit="submitGuess(event)" class="flex gap-2">
+        <input type="number" id="userGuessInput" placeholder="Введите ваш вариант..." min="1" required class="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3.5 text-white font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition text-sm">
+        <button type="submit" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black px-6 py-3.5 rounded-2xl shadow-lg shadow-emerald-500/20 transition flex items-center gap-2 text-sm">
+          Проверить
+        </button>
+      </form>
+
+      <!-- Подсказка / Статус -->
+      <div id="statusBox" class="bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80 text-center text-sm font-semibold text-slate-400 min-h-[58px] flex items-center justify-center">
+        Сделайте вашу первую попытку!
+      </div>
+    </div>
+
+    <!-- Индикаторы: Попытки и Лучший рекорд -->
+    <div class="grid grid-cols-2 gap-3 text-xs font-bold">
+      <div class="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800/80 text-center">
+        <span class="text-slate-500 uppercase tracking-wider block text-[10px] mb-1">Попыток сделано</span>
+        <span id="attemptsCount" class="text-xl font-extrabold text-white">0</span>
+      </div>
+      <div class="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800/80 text-center">
+        <span class="text-slate-500 uppercase tracking-wider block text-[10px] mb-1">Рекорд (минимум)</span>
+        <span id="bestRecord" class="text-xl font-extrabold text-emerald-400">—</span>
+      </div>
+    </div>
+
+    <!-- Кнопка Новая игра -->
+    <button onclick="resetGame()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-2xl text-xs transition flex items-center justify-center gap-2 border border-slate-700">
+      <i class="fa-solid fa-rotate-right"></i> Начать заново
+    </button>
+
+    <!-- Запуск стандартной домашней работы через prompt и while -->
+    <div class="pt-2 border-t border-slate-800 text-center">
+      <button onclick="runClassicPromptGame()" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline transition">
+        Запустить через prompt() и цикл while (учебный режим)
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    let maxRange = 100;
+    let secretNumber = Math.floor(Math.random() * maxRange) + 1;
+    let attempts = 0;
+    let isGameOver = false;
+
+    // Смена сложности
+    function setDifficulty(range) {
+      maxRange = range;
+      document.getElementById('maxRangeLabel').innerText = maxRange;
+      
+      document.querySelectorAll('[id^="diff"]').forEach(btn => {
+        btn.className = 'py-2 rounded-xl transition text-slate-400 hover:text-white';
+      });
+      document.getElementById('diff' + range).className = 'py-2 rounded-xl bg-indigo-600 text-white shadow transition';
+
+      loadBestRecord();
+      resetGame();
+    }
+
+    // Проверка ответа из формы
+    function submitGuess(e) {
+      e.preventDefault();
+      if (isGameOver) return;
+
+      const input = document.getElementById('userGuessInput');
+      const val = parseInt(input.value);
+      if (isNaN(val)) return;
+
+      attempts++;
+      document.getElementById('attemptsCount').innerText = attempts;
+
+      const status = document.getElementById('statusBox');
+
+      if (val < secretNumber) {
+        status.innerHTML = `<span class="text-amber-400 font-bold flex items-center gap-2"><i class="fa-solid fa-arrow-up"></i> Загаданное число БОЛЬШЕ, чем ${val}!</span>`;
+      } else if (val > secretNumber) {
+        status.innerHTML = `<span class="text-indigo-400 font-bold flex items-center gap-2"><i class="fa-solid fa-arrow-down"></i> Загаданное число МЕНЬШЕ, чем ${val}!</span>`;
+      } else {
+        status.innerHTML = `<span class="text-emerald-400 font-bold flex items-center gap-2"><i class="fa-solid fa-trophy"></i> Победа! Вы угадали число ${secretNumber}!</span>`;
+        isGameOver = true;
+        
+        if (typeof confetti === 'function') {
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+
+        saveBestRecord(attempts);
+      }
+
+      input.value = '';
+    }
+
+    // Сброс игры
+    function resetGame() {
+      secretNumber = Math.floor(Math.random() * maxRange) + 1;
+      attempts = 0;
+      isGameOver = false;
+      document.getElementById('attemptsCount').innerText = '0';
+      document.getElementById('statusBox').innerText = 'Сделайте вашу первую попытку!';
+      document.getElementById('userGuessInput').value = '';
+    }
+
+    // Сохранение рекорда в локальное хранилище
+    function saveBestRecord(score) {
+      const key = 'bestRecord_' + maxRange;
+      const currentBest = localStorage.getItem(key);
+      if (!currentBest || score < parseInt(currentBest)) {
+        localStorage.setItem(key, score);
+        loadBestRecord();
+      }
+    }
+
+    function loadBestRecord() {
+      const key = 'bestRecord_' + maxRange;
+      const best = localStorage.getItem(key);
+      document.getElementById('bestRecord').innerText = best ? `${best} поп.` : '—';
+    }
+
+    // Запуск классического prompt() + while
+    function runClassicPromptGame() {
+      const secret = Math.floor(Math.random() * 100) + 1;
+      let guess = null;
+      let count = 0;
+
+      alert("Запущена игра через prompt!\nЯ загадал число от 1 до 100.");
+
+      while (guess !== secret) {
+        let input = prompt("Введите число от 1 до 100 (или 'Отмена' для выхода):");
+
+        if (input === null) {
+          alert("Игра отменена. Было загадано число: " + secret);
+          return;
+        }
+
+        guess = Number(input);
+
+        if (isNaN(guess) || input.trim() === "") {
+          alert("Пожалуйста, введите число!");
+          continue;
+        }
+
+        count++;
+
+        if (guess < secret) {
+          alert("Больше! ⬆️");
+        } else if (guess > secret) {
+          alert("Меньше! ⬇️");
+        } else {
+          alert(`🎉 Поздравляем! Вы угадали число ${secret} за ${count} попыток!`);
+        }
+      }
+    }
+
+    // Инициализация при загрузке
+    window.onload = function() {
+      loadBestRecord();
+    };
+  </script>
+</body>
+</html>
